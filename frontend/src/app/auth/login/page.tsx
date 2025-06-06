@@ -1,40 +1,72 @@
+// frontend/src/app/auth/login/page.tsx
 'use client'
-import { useState } from 'react'
+
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Gamepad2, MessageCircle, AlertCircle } from 'lucide-react'
+import { Gamepad2, MessageCircle, AlertCircle, CheckCircle } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 
 export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const router = useRouter()
-    const { login } = useAuthStore()
+    const searchParams = useSearchParams()
+    const { handleKakaoLogin, checkAuthStatus } = useAuth()
+    const { isAuthenticated } = useAuthStore()
 
-    // 카카오 로그인 URL 생성
-    const getKakaoLoginUrl = () => {
-        const kakaoClientId = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID
-        const redirectUri = `${window.location.origin}/auth/callback`
-        const scope = 'profile_nickname,profile_image,account_email'
+    // 이미 로그인된 경우 대시보드로 리다이렉트
+    useEffect(() => {
+        if (isAuthenticated) {
+            router.push('/dashboard')
+        }
+    }, [isAuthenticated, router])
 
-        return `https://kauth.kakao.com/oauth/authorize?client_id=${kakaoClientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`
-    }
+    // 카카오 로그인 콜백 처리
+    useEffect(() => {
+        const handleCallback = async () => {
+            const code = searchParams.get('code')
+            const error = searchParams.get('error')
 
-    const handleKakaoLogin = () => {
-        if (!process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID) {
-            setError('카카오 로그인 설정이 필요합니다.')
-            return
+            if (error) {
+                setError('카카오 로그인이 취소되었습니다.')
+                return
+            }
+
+            if (code) {
+                setIsLoading(true)
+                try {
+                    // 백엔드에서 카카오 로그인 처리가 완료된 후
+                    // 사용자 정보를 가져와서 로그인 상태 업데이트
+                    const success = await checkAuthStatus()
+                    if (success) {
+                        router.push('/dashboard')
+                    } else {
+                        setError('로그인 처리 중 오류가 발생했습니다.')
+                    }
+                } catch (err) {
+                    console.error('로그인 처리 오류:', err)
+                    setError('로그인 처리 중 오류가 발생했습니다.')
+                } finally {
+                    setIsLoading(false)
+                }
+            }
         }
 
+        handleCallback()
+    }, [searchParams, checkAuthStatus, router])
+
+    const handleKakaoLoginClick = () => {
         setIsLoading(true)
         setError(null)
 
         try {
-            window.location.href = getKakaoLoginUrl()
+            handleKakaoLogin()
         } catch (error) {
             console.error('카카오 로그인 오류:', error)
             setError('로그인 중 오류가 발생했습니다.')
@@ -43,11 +75,12 @@ export default function LoginPage() {
     }
 
     // 데모용 로그인 (개발 중에만 사용)
-    const handleDemoLogin = () => {
+    const handleDemoLogin = async () => {
         setIsLoading(true)
 
-        // 임시 사용자 데이터로 로그인
-        setTimeout(() => {
+        try {
+            // 데모 사용자로 직접 로그인
+            const { login } = useAuthStore.getState()
             const demoUser = {
                 id: 'demo-user-1',
                 email: 'demo@gamecraft.com',
@@ -58,8 +91,11 @@ export default function LoginPage() {
 
             login(demoUser, 'demo-token')
             router.push('/dashboard')
+        } catch (error) {
+            setError('데모 로그인 중 오류가 발생했습니다.')
+        } finally {
             setIsLoading(false)
-        }, 1000)
+        }
     }
 
     return (
@@ -91,6 +127,16 @@ export default function LoginPage() {
                     </CardHeader>
 
                     <CardContent className="space-y-4">
+                        {/* 성공 메시지 */}
+                        {searchParams.get('success') && (
+                            <Alert>
+                                <CheckCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                    카카오 로그인이 완료되었습니다. 잠시만 기다려주세요...
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         {/* 에러 메시지 */}
                         {error && (
                             <Alert variant="destructive">
@@ -101,7 +147,7 @@ export default function LoginPage() {
 
                         {/* 카카오 로그인 버튼 */}
                         <Button
-                            onClick={handleKakaoLogin}
+                            onClick={handleKakaoLoginClick}
                             disabled={isLoading}
                             className="w-full bg-[#FEE500] hover:bg-[#FEE500]/90 text-black border-0 h-12"
                             size="lg"
@@ -125,28 +171,30 @@ export default function LoginPage() {
                             </div>
                             <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  또는
+                  간편 로그인
                 </span>
                             </div>
                         </div>
 
-                        {/* 데모 로그인 버튼 (개발용) */}
-                        <Button
-                            onClick={handleDemoLogin}
-                            disabled={isLoading}
-                            variant="outline"
-                            className="w-full h-12"
-                            size="lg"
-                        >
-                            {isLoading ? (
-                                <div className="flex items-center">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
-                                    로그인 중...
-                                </div>
-                            ) : (
-                                '데모 계정으로 체험하기'
-                            )}
-                        </Button>
+                        {/* 데모 로그인 버튼 (개발용) - 제거됨 */}
+                        {process.env.NODE_ENV === 'development' && false && (
+                            <Button
+                                onClick={handleDemoLogin}
+                                disabled={isLoading}
+                                variant="outline"
+                                className="w-full h-12"
+                                size="lg"
+                            >
+                                {isLoading ? (
+                                    <div className="flex items-center">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                                        로그인 중...
+                                    </div>
+                                ) : (
+                                    '데모 계정으로 체험하기'
+                                )}
+                            </Button>
+                        )}
 
                         {/* 약관 동의 */}
                         <p className="text-xs text-center text-gray-500 leading-relaxed">

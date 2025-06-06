@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.util.Map;
 import java.util.Optional;
 
@@ -51,10 +52,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
             if (existingUser.isPresent()) {
                 user = existingUser.get();
+                // 기존 사용자 정보 업데이트
                 user.setName(nickname);
                 user.setEmail(email);
                 user.setProfileImage(profileImage);
+                logger.info("기존 사용자 로그인: " + user.getName());
             } else {
+                // 새 사용자 생성
                 user = new User();
                 user.setKakaoId(String.valueOf(kakaoId));
                 user.setName(nickname);
@@ -62,16 +66,22 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 user.setProfileImage(profileImage);
                 user.setRole(User.Role.USER);
                 user.setStatus(User.Status.ACTIVE);
+                logger.info("새 사용자 생성: " + user.getName());
             }
 
             userRepository.save(user);
 
-            // 성공 페이지로 리다이렉트
-            getRedirectStrategy().sendRedirect(request, response, "/success");
+            // 프론트엔드로 리다이렉트 (성공)
+            String redirectUrl = "http://localhost:3000/auth/callback?success=true";
+            getRedirectStrategy().sendRedirect(request, response, redirectUrl);
 
         } catch (Exception e) {
             logger.error("OAuth2 success handling failed", e);
-            getRedirectStrategy().sendRedirect(request, response, "/login?error=oauth");
+
+            // 에러 발생 시 프론트엔드로 에러와 함께 리다이렉트
+            String errorMessage = URLEncoder.encode("로그인 처리 중 오류가 발생했습니다.", "UTF-8");
+            String redirectUrl = "http://localhost:3000/auth/callback?error=" + errorMessage;
+            getRedirectStrategy().sendRedirect(request, response, redirectUrl);
         }
     }
 }

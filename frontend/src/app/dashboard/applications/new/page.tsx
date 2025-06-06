@@ -1,26 +1,32 @@
-// frontend/src/app/dashboard/applications/new/page.tsx (간단 버전)
+// frontend/src/app/dashboard/applications/new/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
+import { useApplications } from '@/hooks/useApplications'
+import { useRequireAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import {  Send, Plus, X, Briefcase, Code, User } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Send, Plus, X, Briefcase, Code } from 'lucide-react'
+import { CreateApplicationRequest } from '@/lib/api'
 import { toast } from 'sonner'
 
 export default function NewApplicationPage() {
     const router = useRouter()
     const { user } = useAuthStore()
+    const isAuthenticated = useRequireAuth()
+    const { formInfo, createApplication, isCreatingApplication, isLoadingFormInfo } = useApplications()
 
     const [formData, setFormData] = useState({
         // 기본 정보
-        position: '웹 플랫폼 개발자',
-        company: '카카오게임즈',
-        department: '플랫폼개발팀',
+        position: '',
+        company: '',
+        department: '',
 
         // 개인 정보
         name: user?.nickname || '',
@@ -29,40 +35,46 @@ export default function NewApplicationPage() {
         location: '서울, 대한민국',
 
         // 경력 정보
-        experience: '2-3년',
+        experienceLevel: 'JUNIOR' as 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD',
+        jobType: 'FULL_TIME' as 'FULL_TIME' | 'CONTRACT' | 'FREELANCE' | 'INTERN',
         currentCompany: '',
         currentPosition: '',
-        salary: '협의',
+        expectedSalary: '',
 
         // 포트폴리오
         portfolioUrl: '',
         githubUrl: '',
 
         // 지원 동기
-        motivation: '',
+        coverLetter: '',
         strengths: '',
         projectExperience: '',
 
         // 추가 정보
-        availability: '즉시 가능',
-        militaryService: '완료'
+        availableStartDate: '',
+        workLocation: '서울'
     })
 
-    const [skills, setSkills] = useState([
+    const [skills, setSkills] = useState<string[]>([
         'React', 'TypeScript', 'Next.js', 'Node.js'
     ])
     const [newSkill, setNewSkill] = useState('')
-    const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const companies = [
-        '카카오게임즈', 'Krafton', 'NCSoft', 'Pearl Abyss',
-        'Smilegate', 'Nexon', 'Netmarble', 'Com2uS'
-    ]
+    // 사용자 정보 업데이트
+    useEffect(() => {
+        if (user) {
+            setFormData(prev => ({
+                ...prev,
+                name: user.nickname || '',
+                email: user.email || ''
+            }))
+        }
+    }, [user])
 
-    const positions = [
-        '웹 플랫폼 개발자', '프론트엔드 개발자', '백엔드 개발자',
-        '풀스택 개발자', '게임 클라이언트 개발자', '게임 서버 개발자'
-    ]
+    // 로그인 상태 확인
+    if (!isAuthenticated) {
+        return null // useRequireAuth에서 리다이렉트 처리
+    }
 
     const addSkill = () => {
         if (newSkill.trim() && !skills.includes(newSkill.trim())) {
@@ -79,31 +91,60 @@ export default function NewApplicationPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setIsSubmitting(true)
+
+        // 폼 검증
+        if (!formData.company.trim()) {
+            toast.error('회사명을 선택해주세요')
+            return
+        }
+
+        if (!formData.position.trim()) {
+            toast.error('지원 포지션을 선택해주세요')
+            return
+        }
+
+        if (!formData.coverLetter.trim()) {
+            toast.error('지원 동기를 입력해주세요')
+            return
+        }
+
+        if (formData.coverLetter.length < 50) {
+            toast.error('지원 동기는 50자 이상 입력해주세요')
+            return
+        }
 
         try {
-            // 폼 검증
-            if (!formData.motivation.trim()) {
-                toast.error('지원 동기를 입력해주세요')
-                return
+            const applicationData: CreateApplicationRequest = {
+                company: formData.company,
+                position: formData.position,
+                experienceLevel: formData.experienceLevel,
+                jobType: formData.jobType,
+                skills: skills,
+                coverLetter: formData.coverLetter,
+                expectedSalary: formData.expectedSalary || undefined,
+                availableStartDate: formData.availableStartDate || undefined,
+                workLocation: formData.workLocation || undefined,
             }
 
-            if (!formData.strengths.trim()) {
-                toast.error('강점 및 역량을 입력해주세요')
-                return
+            const response = await createApplication(applicationData)
+
+            if (response.success) {
+                router.push('/dashboard/applications')
             }
-
-            // 가상의 API 호출
-            await new Promise(resolve => setTimeout(resolve, 2000))
-
-            toast.success('지원서가 성공적으로 제출되었습니다!')
-            router.push('/dashboard/applications')
-
         } catch (error) {
-            toast.error('지원서 제출 중 오류가 발생했습니다')
-        } finally {
-            setIsSubmitting(false)
+            console.error('지원서 제출 오류:', error)
         }
+    }
+
+    if (isLoadingFormInfo) {
+        return (
+            <div className="container py-8 max-w-4xl">
+                <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <span className="ml-2">로딩 중...</span>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -130,146 +171,95 @@ export default function NewApplicationPage() {
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">회사명</label>
-                                <select
+                                <label className="text-sm font-medium">회사명 *</label>
+                                <Select
                                     value={formData.company}
-                                    onChange={(e) => setFormData({...formData, company: e.target.value})}
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    onValueChange={(value) => setFormData({...formData, company: value})}
                                 >
-                                    {companies.map((company) => (
-                                        <option key={company} value={company}>
-                                            {company}
-                                        </option>
-                                    ))}
-                                </select>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="회사를 선택하세요" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {formInfo?.companies?.map((company) => (
+                                            <SelectItem key={company} value={company}>
+                                                {company}
+                                            </SelectItem>
+                                        )) || [
+                                            '카카오게임즈', 'Krafton', 'NCSoft', 'Pearl Abyss',
+                                            'Smilegate', 'Nexon', 'Netmarble', 'Com2uS'
+                                        ].map((company) => (
+                                            <SelectItem key={company} value={company}>
+                                                {company}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">지원 포지션</label>
-                                <select
+                                <label className="text-sm font-medium">지원 포지션 *</label>
+                                <Select
                                     value={formData.position}
-                                    onChange={(e) => setFormData({...formData, position: e.target.value})}
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    onValueChange={(value) => setFormData({...formData, position: value})}
                                 >
-                                    {positions.map((position) => (
-                                        <option key={position} value={position}>
-                                            {position}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                                <label className="text-sm font-medium">희망 부서/팀</label>
-                                <Input
-                                    value={formData.department}
-                                    onChange={(e) => setFormData({...formData, department: e.target.value})}
-                                    placeholder="예: 플랫폼개발팀, 웹서비스팀"
-                                />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* 개인 정보 */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center">
-                            <User className="h-5 w-5 mr-2" />
-                            개인 정보
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">이름 *</label>
-                                <Input
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                    required
-                                />
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="포지션을 선택하세요" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {formInfo?.positions?.map((position) => (
+                                            <SelectItem key={position} value={position}>
+                                                {position}
+                                            </SelectItem>
+                                        )) || [
+                                            '웹 플랫폼 개발자', '프론트엔드 개발자', '백엔드 개발자',
+                                            '풀스택 개발자', '게임 클라이언트 개발자', '게임 서버 개발자'
+                                        ].map((position) => (
+                                            <SelectItem key={position} value={position}>
+                                                {position}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">이메일 *</label>
-                                <Input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                                    required
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">연락처 *</label>
-                                <Input
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                                    placeholder="010-1234-5678"
-                                    required
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">거주지</label>
-                                <Input
-                                    value={formData.location}
-                                    onChange={(e) => setFormData({...formData, location: e.target.value})}
-                                />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* 경력 정보 */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>경력 정보</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">총 경력</label>
-                                <select
-                                    value={formData.experience}
-                                    onChange={(e) => setFormData({...formData, experience: e.target.value})}
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                <label className="text-sm font-medium">경력 수준 *</label>
+                                <Select
+                                    value={formData.experienceLevel}
+                                    onValueChange={(value: 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD') =>
+                                        setFormData({...formData, experienceLevel: value})
+                                    }
                                 >
-                                    <option value="신입">신입</option>
-                                    <option value="1년 미만">1년 미만</option>
-                                    <option value="1-2년">1-2년</option>
-                                    <option value="2-3년">2-3년</option>
-                                    <option value="3-5년">3-5년</option>
-                                    <option value="5-10년">5-10년</option>
-                                    <option value="10년 이상">10년 이상</option>
-                                </select>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="경력을 선택하세요" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="JUNIOR">신입</SelectItem>
+                                        <SelectItem value="MIDDLE">경력 3-5년</SelectItem>
+                                        <SelectItem value="SENIOR">경력 5년 이상</SelectItem>
+                                        <SelectItem value="LEAD">팀 리드</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">희망 연봉</label>
-                                <Input
-                                    value={formData.salary}
-                                    onChange={(e) => setFormData({...formData, salary: e.target.value})}
-                                    placeholder="예: 5000만원, 협의"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">현재 회사</label>
-                                <Input
-                                    value={formData.currentCompany}
-                                    onChange={(e) => setFormData({...formData, currentCompany: e.target.value})}
-                                    placeholder="현재 재직 중인 회사명"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">현재 직책</label>
-                                <Input
-                                    value={formData.currentPosition}
-                                    onChange={(e) => setFormData({...formData, currentPosition: e.target.value})}
-                                    placeholder="현재 직책/포지션"
-                                />
+                                <label className="text-sm font-medium">고용 형태 *</label>
+                                <Select
+                                    value={formData.jobType}
+                                    onValueChange={(value: 'FULL_TIME' | 'CONTRACT' | 'FREELANCE' | 'INTERN') =>
+                                        setFormData({...formData, jobType: value})
+                                    }
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="고용 형태를 선택하세요" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="FULL_TIME">정규직</SelectItem>
+                                        <SelectItem value="CONTRACT">계약직</SelectItem>
+                                        <SelectItem value="FREELANCE">프리랜서</SelectItem>
+                                        <SelectItem value="INTERN">인턴</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                     </CardContent>
@@ -286,7 +276,7 @@ export default function NewApplicationPage() {
                     <CardContent className="space-y-4">
                         {/* 기술 스택 */}
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">보유 기술</label>
+                            <label className="text-sm font-medium">보유 기술 *</label>
                             <div className="flex space-x-2">
                                 <Input
                                     placeholder="기술 추가 (예: React)"
@@ -353,36 +343,15 @@ export default function NewApplicationPage() {
                         <div className="space-y-2">
                             <label className="text-sm font-medium">지원 동기 *</label>
                             <Textarea
-                                value={formData.motivation}
-                                onChange={(e) => setFormData({...formData, motivation: e.target.value})}
-                                placeholder="카카오게임즈에 지원하는 이유와 입사 후 목표를 구체적으로 작성해주세요"
-                                rows={5}
+                                value={formData.coverLetter}
+                                onChange={(e) => setFormData({...formData, coverLetter: e.target.value})}
+                                placeholder="해당 회사에 지원하는 이유와 입사 후 목표를 구체적으로 작성해주세요"
+                                rows={6}
                                 required
                             />
                             <p className="text-sm text-muted-foreground">
-                                {formData.motivation.length}/1000자
+                                {formData.coverLetter.length}/1000자 (최소 50자)
                             </p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">강점 및 역량 *</label>
-                            <Textarea
-                                value={formData.strengths}
-                                onChange={(e) => setFormData({...formData, strengths: e.target.value})}
-                                placeholder="본인의 강점과 게임 개발에 관련된 역량을 구체적으로 설명해주세요"
-                                rows={4}
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">주요 프로젝트 경험</label>
-                            <Textarea
-                                value={formData.projectExperience}
-                                onChange={(e) => setFormData({...formData, projectExperience: e.target.value})}
-                                placeholder="가장 인상 깊었던 프로젝트나 성과를 상세히 설명해주세요"
-                                rows={4}
-                            />
                         </div>
                     </CardContent>
                 </Card>
@@ -393,34 +362,32 @@ export default function NewApplicationPage() {
                         <CardTitle>추가 정보</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">입사 가능일</label>
-                                <select
-                                    value={formData.availability}
-                                    onChange={(e) => setFormData({...formData, availability: e.target.value})}
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <option value="즉시 가능">즉시 가능</option>
-                                    <option value="1개월 후">1개월 후</option>
-                                    <option value="2개월 후">2개월 후</option>
-                                    <option value="3개월 후">3개월 후</option>
-                                    <option value="협의">협의</option>
-                                </select>
+                                <label className="text-sm font-medium">희망 연봉</label>
+                                <Input
+                                    value={formData.expectedSalary}
+                                    onChange={(e) => setFormData({...formData, expectedSalary: e.target.value})}
+                                    placeholder="예: 5000만원, 협의"
+                                />
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">병역 사항</label>
-                                <select
-                                    value={formData.militaryService}
-                                    onChange={(e) => setFormData({...formData, militaryService: e.target.value})}
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <option value="완료">완료</option>
-                                    <option value="면제">면제</option>
-                                    <option value="미필">미필</option>
-                                    <option value="해당없음">해당없음</option>
-                                </select>
+                                <label className="text-sm font-medium">입사 가능일</label>
+                                <Input
+                                    type="date"
+                                    value={formData.availableStartDate}
+                                    onChange={(e) => setFormData({...formData, availableStartDate: e.target.value})}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">희망 근무지</label>
+                                <Input
+                                    value={formData.workLocation}
+                                    onChange={(e) => setFormData({...formData, workLocation: e.target.value})}
+                                    placeholder="서울, 판교, 재택근무 등"
+                                />
                             </div>
                         </div>
                     </CardContent>
@@ -438,10 +405,10 @@ export default function NewApplicationPage() {
 
                     <Button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isCreatingApplication}
                         className="min-w-[120px]"
                     >
-                        {isSubmitting ? (
+                        {isCreatingApplication ? (
                             <div className="flex items-center">
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                                 제출 중...

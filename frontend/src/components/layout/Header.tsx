@@ -1,6 +1,6 @@
+// frontend/src/components/layout/Header.tsx
 'use client'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -12,15 +12,31 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuthStore } from '@/store/authStore'
-import { Gamepad2, User, Settings, LogOut, Plus } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import {
+    Gamepad2,
+    User,
+    Settings,
+    LogOut,
+    Plus,
+    Loader2,
+    FileText,
+    Shield
+} from 'lucide-react'
+import { useState } from 'react'
 
 export function Header() {
-    const { user, isAuthenticated, logout } = useAuthStore()
-    const router = useRouter()
+    const { user, isAuthenticated } = useAuthStore()
+    const { handleLogout } = useAuth()
+    const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-    const handleLogout = () => {
-        logout()
-        router.push('/')
+    const handleLogoutClick = async () => {
+        setIsLoggingOut(true)
+        try {
+            await handleLogout()
+        } finally {
+            setIsLoggingOut(false)
+        }
     }
 
     return (
@@ -30,8 +46,8 @@ export function Header() {
                 <Link href="/" className="flex items-center space-x-2">
                     <Gamepad2 className="h-8 w-8 text-primary" />
                     <span className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-            GameCraft Studios
-          </span>
+                        GameCraft Studios
+                    </span>
                 </Link>
 
                 {/* 네비게이션 */}
@@ -86,6 +102,13 @@ export function Header() {
                                             <p className="text-xs leading-none text-muted-foreground">
                                                 {user?.email}
                                             </p>
+                                            {user?.role === 'ADMIN' && (
+                                                <div className="pt-1">
+                                                    <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
+                                                        관리자
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </DropdownMenuLabel>
 
@@ -99,17 +122,49 @@ export function Header() {
                                     </DropdownMenuItem>
 
                                     <DropdownMenuItem asChild>
+                                        <Link href="/dashboard/applications">
+                                            <FileText className="mr-2 h-4 w-4" />
+                                            지원 현황
+                                        </Link>
+                                    </DropdownMenuItem>
+
+                                    <DropdownMenuItem asChild>
                                         <Link href="/dashboard/profile">
                                             <Settings className="mr-2 h-4 w-4" />
                                             프로필 설정
                                         </Link>
                                     </DropdownMenuItem>
 
+                                    {user?.role === 'ADMIN' && (
+                                        <>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem asChild>
+                                                <Link href="/admin/dashboard">
+                                                    <Shield className="mr-2 h-4 w-4" />
+                                                    관리자 패널
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        </>
+                                    )}
+
                                     <DropdownMenuSeparator />
 
-                                    <DropdownMenuItem onClick={handleLogout}>
-                                        <LogOut className="mr-2 h-4 w-4" />
-                                        로그아웃
+                                    <DropdownMenuItem
+                                        onClick={handleLogoutClick}
+                                        disabled={isLoggingOut}
+                                        className="text-red-600 focus:text-red-600"
+                                    >
+                                        {isLoggingOut ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                로그아웃 중...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <LogOut className="mr-2 h-4 w-4" />
+                                                로그아웃
+                                            </>
+                                        )}
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>

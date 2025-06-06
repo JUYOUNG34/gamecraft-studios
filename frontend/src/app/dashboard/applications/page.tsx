@@ -1,7 +1,7 @@
 // frontend/src/app/dashboard/applications/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,164 +13,102 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuTrigger
+    DropdownMenuTrigger,
+    DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
 import {
     Plus, Search, Filter, MoreHorizontal, Eye, Edit, Trash2,
     Calendar, Clock, CheckCircle, XCircle, AlertCircle, FileText,
-    Building, MapPin, Banknote
+    Building, Loader2,  Copy
 } from 'lucide-react'
+import { useApplications } from '@/hooks/useApplications'
+import { useRequireAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 
-interface Application {
-    id: string
-    company: string
-    position: string
-    department: string
-    location: string
-    salary: string
-    appliedAt: string
-    status: 'pending' | 'reviewing' | 'interview' | 'technical' | 'final' | 'accepted' | 'rejected'
-    lastUpdate: string
-    recruiter?: string
-    notes?: string
-    nextStep?: string
-    nextStepDate?: string
+// 상태 정보 타입 정의
+interface StatusInfo {
+    label: string
+    color: string
+    icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+}
+
+type ApplicationStatusMap = {
+    [key: string]: StatusInfo
 }
 
 export default function ApplicationsPage() {
+    const isAuthenticated = useRequireAuth()
+    const { myApplications,  isLoadingApplications, applicationsError } = useApplications()
+
     const [searchTerm, setSearchTerm] = useState('')
     const [statusFilter, setStatusFilter] = useState<string>('all')
     const [selectedTab, setSelectedTab] = useState('all')
 
-    // 가상의 지원 데이터
-    const [applications] = useState<Application[]>([
-        {
-            id: '1',
-            company: '카카오게임즈',
-            position: '웹 플랫폼 개발자',
-            department: '플랫폼개발팀',
-            location: '판교',
-            salary: '협의',
-            appliedAt: '2025-06-01',
-            status: 'interview',
-            lastUpdate: '2025-06-03',
-            recruiter: '김채용 매니저',
-            nextStep: '기술 면접',
-            nextStepDate: '2025-06-10'
+    // 상태 정보 매핑
+    const statusInfo: ApplicationStatusMap = {
+        'SUBMITTED': {
+            label: '지원완료',
+            color: 'bg-gray-100 text-gray-800 border-gray-200',
+            icon: Clock
         },
-        {
-            id: '2',
-            company: 'Krafton',
-            position: '게임 클라이언트 개발자',
-            department: '배틀그라운드팀',
-            location: '서울',
-            salary: '6000만원',
-            appliedAt: '2025-05-28',
-            status: 'reviewing',
-            lastUpdate: '2025-05-30',
-            recruiter: '박인사 팀장'
+        'REVIEWING': {
+            label: '서류검토',
+            color: 'bg-blue-100 text-blue-800 border-blue-200',
+            icon: FileText
         },
-        {
-            id: '3',
-            company: 'Pearl Abyss',
-            position: '백엔드 개발자',
-            department: '서버개발팀',
-            location: '안양',
-            salary: '5500만원',
-            appliedAt: '2025-05-25',
-            status: 'technical',
-            lastUpdate: '2025-06-02',
-            recruiter: '이기술 매니저',
-            nextStep: '기술 과제 제출',
-            nextStepDate: '2025-06-08'
+        'INTERVIEW_SCHEDULED': {
+            label: '면접대기',
+            color: 'bg-purple-100 text-purple-800 border-purple-200',
+            icon: Calendar
         },
-        {
-            id: '4',
-            company: 'NCSoft',
-            position: '프론트엔드 개발자',
-            department: '웹서비스팀',
-            location: '판교',
-            salary: '5000만원',
-            appliedAt: '2025-05-20',
-            status: 'accepted',
-            lastUpdate: '2025-06-01',
-            recruiter: '정합격 매니저'
+        'INTERVIEW_COMPLETED': {
+            label: '면접완료',
+            color: 'bg-orange-100 text-orange-800 border-orange-200',
+            icon: AlertCircle
         },
-        {
-            id: '5',
-            company: 'Smilegate',
-            position: '풀스택 개발자',
-            department: '플랫폼팀',
-            location: '서울',
-            salary: '협의',
-            appliedAt: '2025-05-15',
-            status: 'rejected',
-            lastUpdate: '2025-05-22',
-            recruiter: '최불합격 팀장'
+        'ACCEPTED': {
+            label: '합격',
+            color: 'bg-green-100 text-green-800 border-green-200',
+            icon: CheckCircle
         },
-        {
-            id: '6',
-            company: 'Nexon',
-            position: 'DevOps 엔지니어',
-            department: '인프라팀',
-            location: '판교',
-            salary: '7000만원',
-            appliedAt: '2025-05-10',
-            status: 'pending',
-            lastUpdate: '2025-05-10'
+        'REJECTED': {
+            label: '불합격',
+            color: 'bg-red-100 text-red-800 border-red-200',
+            icon: XCircle
+        },
+        'WITHDRAWN': {
+            label: '지원취소',
+            color: 'bg-gray-100 text-gray-800 border-gray-200',
+            icon: XCircle
         }
-    ])
-
-    const getStatusInfo = (status: Application['status']) => {
-        const statusMap = {
-            pending: {
-                label: '지원완료',
-                color: 'bg-gray-100 text-gray-800',
-                icon: Clock
-            },
-            reviewing: {
-                label: '서류검토',
-                color: 'bg-blue-100 text-blue-800',
-                icon: FileText
-            },
-            interview: {
-                label: '면접대기',
-                color: 'bg-purple-100 text-purple-800',
-                icon: Calendar
-            },
-            technical: {
-                label: '기술과제',
-                color: 'bg-orange-100 text-orange-800',
-                icon: AlertCircle
-            },
-            final: {
-                label: '최종면접',
-                color: 'bg-yellow-100 text-yellow-800',
-                icon: Calendar
-            },
-            accepted: {
-                label: '합격',
-                color: 'bg-green-100 text-green-800',
-                icon: CheckCircle
-            },
-            rejected: {
-                label: '불합격',
-                color: 'bg-red-100 text-red-800',
-                icon: XCircle
-            }
-        }
-        return statusMap[status]
     }
 
-    const getFilteredApplications = () => {
-        let filtered = applications
+    const getStatusInfo = (status: string): StatusInfo => {
+        return statusInfo[status] || statusInfo['SUBMITTED']
+    }
+
+    // 통계 계산
+    const stats = useMemo(() => {
+        const total = myApplications.length
+        const active = myApplications.filter(app =>
+            ['SUBMITTED', 'REVIEWING', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED'].includes(app.status)
+        ).length
+        const accepted = myApplications.filter(app => app.status === 'ACCEPTED').length
+        const rejected = myApplications.filter(app => app.status === 'REJECTED').length
+
+        return { total, active, accepted, rejected }
+    }, [myApplications])
+
+    // 필터링된 지원서 목록
+    const filteredApplications = useMemo(() => {
+        let filtered = [...myApplications]
 
         // 검색 필터링
-        if (searchTerm) {
+        if (searchTerm.trim()) {
+            const searchLower = searchTerm.toLowerCase()
             filtered = filtered.filter(app =>
-                app.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                app.position.toLowerCase().includes(searchTerm.toLowerCase())
+                app.company.toLowerCase().includes(searchLower) ||
+                app.position.toLowerCase().includes(searchLower)
             )
         }
 
@@ -181,43 +119,109 @@ export default function ApplicationsPage() {
 
         // 탭 필터링
         if (selectedTab !== 'all') {
-            const tabStatusMap: Record<string, Application['status'][]> = {
-                active: ['pending', 'reviewing', 'interview', 'technical', 'final'],
-                completed: ['accepted', 'rejected']
+            const tabStatusMap: Record<string, string[]> = {
+                active: ['SUBMITTED', 'REVIEWING', 'INTERVIEW_SCHEDULED', 'INTERVIEW_COMPLETED'],
+                completed: ['ACCEPTED', 'REJECTED', 'WITHDRAWN']
             }
             if (tabStatusMap[selectedTab]) {
                 filtered = filtered.filter(app => tabStatusMap[selectedTab].includes(app.status))
             }
         }
 
-        return filtered.sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime())
+        // 최신순 정렬
+        return filtered.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+    }, [myApplications, searchTerm, statusFilter, selectedTab])
+
+    // 이벤트 핸들러
+    const handleViewDetail = (applicationId: string) => {
+        // TODO: 상세 페이지로 이동
+        console.log('Viewing application:', applicationId)
+        toast.info('상세 페이지 기능은 준비 중입니다.')
     }
 
-    const handleDelete = (id: string) => {
-        toast.success('지원서가 삭제되었습니다')
+    const handleEdit = (applicationId: string) => {
+        // TODO: 수정 페이지로 이동
+        console.log('Editing application:', applicationId)
+        toast.info('지원서 수정 기능은 준비 중입니다.')
     }
 
-    const getStatistics = () => {
-        const total = applications.length
-        const active = applications.filter(app =>
-            ['pending', 'reviewing', 'interview', 'technical', 'final'].includes(app.status)
-        ).length
-        const accepted = applications.filter(app => app.status === 'accepted').length
-        const rejected = applications.filter(app => app.status === 'rejected').length
+    const handleDelete = async (applicationId: string) => {
+        if (!confirm('정말로 이 지원서를 삭제하시겠습니까?')) {
+            return
+        }
 
-        return { total, active, accepted, rejected }
+        try {
+            // TODO: 실제 삭제 API 구현
+            console.log('Deleting application:', applicationId)
+            toast.success('지원서가 삭제되었습니다.')
+        } catch (error) {
+            console.error('Delete error:', error)
+            toast.error('지원서 삭제에 실패했습니다.')
+        }
     }
 
-    const stats = getStatistics()
-    const filteredApplications = getFilteredApplications()
+    const handleCopyApplicationId = (applicationId: string) => {
+        navigator.clipboard.writeText(applicationId)
+        toast.success('지원서 ID가 클립보드에 복사되었습니다.')
+    }
+
+    // 날짜 포맷팅
+    const formatDate = (dateString: string) => {
+        try {
+            return new Date(dateString).toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            })
+        } catch {
+            return dateString
+        }
+    }
+
+    // 로딩 상태
+    if (isLoadingApplications) {
+        return (
+            <div className="container py-8 max-w-6xl">
+                <div className="flex items-center justify-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="ml-3 text-muted-foreground">지원 현황을 불러오는 중...</span>
+                </div>
+            </div>
+        )
+    }
+
+    // 에러 상태
+    if (applicationsError) {
+        return (
+            <div className="container py-8 max-w-6xl">
+                <Card>
+                    <CardContent className="p-8 text-center">
+                        <AlertCircle className="h-12 w-12 mx-auto text-red-500 mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">데이터를 불러올 수 없습니다</h3>
+                        <p className="text-muted-foreground mb-4">
+                            네트워크 연결을 확인하고 다시 시도해주세요.
+                        </p>
+                        <Button onClick={() => window.location.reload()}>
+                            다시 시도
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
+    // 로그인 상태 확인
+    if (!isAuthenticated) {
+        return null
+    }
 
     return (
         <div className="container py-8 max-w-6xl">
             {/* 헤더 */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">지원 현황</h1>
-                    <p className="text-muted-foreground">
+                    <p className="text-muted-foreground mt-1">
                         내가 지원한 회사들의 진행 상황을 확인하고 관리하세요
                     </p>
                 </div>
@@ -281,12 +285,12 @@ export default function ApplicationsPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">모든 상태</SelectItem>
-                                <SelectItem value="pending">지원완료</SelectItem>
-                                <SelectItem value="reviewing">서류검토</SelectItem>
-                                <SelectItem value="interview">면접대기</SelectItem>
-                                <SelectItem value="technical">기술과제</SelectItem>
-                                <SelectItem value="accepted">합격</SelectItem>
-                                <SelectItem value="rejected">불합격</SelectItem>
+                                <SelectItem value="SUBMITTED">지원완료</SelectItem>
+                                <SelectItem value="REVIEWING">서류검토</SelectItem>
+                                <SelectItem value="INTERVIEW_SCHEDULED">면접대기</SelectItem>
+                                <SelectItem value="INTERVIEW_COMPLETED">면접완료</SelectItem>
+                                <SelectItem value="ACCEPTED">합격</SelectItem>
+                                <SelectItem value="REJECTED">불합격</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -296,7 +300,7 @@ export default function ApplicationsPage() {
             {/* 탭 및 지원 목록 */}
             <Tabs value={selectedTab} onValueChange={setSelectedTab}>
                 <TabsList className="mb-6">
-                    <TabsTrigger value="all">전체 ({applications.length})</TabsTrigger>
+                    <TabsTrigger value="all">전체 ({stats.total})</TabsTrigger>
                     <TabsTrigger value="active">진행 중 ({stats.active})</TabsTrigger>
                     <TabsTrigger value="completed">완료 ({stats.accepted + stats.rejected})</TabsTrigger>
                 </TabsList>
@@ -307,56 +311,67 @@ export default function ApplicationsPage() {
                             <Card>
                                 <CardContent className="p-8 text-center">
                                     <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                                    <h3 className="text-lg font-semibold mb-2">지원 내역이 없습니다</h3>
+                                    <h3 className="text-lg font-semibold mb-2">
+                                        {myApplications.length === 0 ? '지원 내역이 없습니다' : '검색 결과가 없습니다'}
+                                    </h3>
                                     <p className="text-muted-foreground mb-4">
-                                        새로운 회사에 지원해보세요!
+                                        {myApplications.length === 0
+                                            ? '새로운 회사에 지원해보세요!'
+                                            : '다른 검색어나 필터를 시도해보세요.'
+                                        }
                                     </p>
-                                    <Button asChild>
-                                        <Link href="/dashboard/applications/new">
-                                            첫 지원서 작성하기
-                                        </Link>
-                                    </Button>
+                                    {myApplications.length === 0 && (
+                                        <Button asChild>
+                                            <Link href="/dashboard/applications/new">
+                                                첫 지원서 작성하기
+                                            </Link>
+                                        </Button>
+                                    )}
                                 </CardContent>
                             </Card>
                         ) : (
                             filteredApplications.map((application) => {
-                                const statusInfo = getStatusInfo(application.status)
-                                const StatusIcon = statusInfo.icon
+                                const statusData = getStatusInfo(application.status)
+                                const StatusIcon = statusData.icon
 
                                 return (
                                     <Card key={application.id} className="hover:shadow-md transition-shadow">
                                         <CardContent className="p-6">
                                             <div className="flex items-start justify-between">
-                                                <div className="flex-1">
+                                                <div className="flex-1 min-w-0">
                                                     <div className="flex items-start justify-between mb-3">
-                                                        <div>
-                                                            <h3 className="text-lg font-semibold">{application.position}</h3>
+                                                        <div className="min-w-0 flex-1">
+                                                            <h3 className="text-lg font-semibold truncate">{application.position}</h3>
                                                             <div className="flex items-center text-muted-foreground text-sm mt-1">
-                                                                <Building className="h-4 w-4 mr-1" />
-                                                                <span className="font-medium">{application.company}</span>
-                                                                <span className="mx-2">•</span>
-                                                                <span>{application.department}</span>
+                                                                <Building className="h-4 w-4 mr-1 flex-shrink-0" />
+                                                                <span className="font-medium truncate">{application.company}</span>
                                                             </div>
                                                         </div>
 
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" size="sm">
+                                                                <Button variant="ghost" size="sm" className="ml-2">
                                                                     <MoreHorizontal className="h-4 w-4" />
                                                                 </Button>
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleViewDetail(application.id)}>
                                                                     <Eye className="h-4 w-4 mr-2" />
                                                                     상세 보기
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleEdit(application.id)}>
                                                                     <Edit className="h-4 w-4 mr-2" />
                                                                     수정하기
                                                                 </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem onClick={() => handleCopyApplicationId(application.id)}>
+                                                                    <Copy className="h-4 w-4 mr-2" />
+                                                                    ID 복사
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
                                                                 <DropdownMenuItem
                                                                     onClick={() => handleDelete(application.id)}
-                                                                    className="text-destructive"
+                                                                    className="text-destructive focus:text-destructive"
                                                                 >
                                                                     <Trash2 className="h-4 w-4 mr-2" />
                                                                     삭제하기
@@ -365,44 +380,24 @@ export default function ApplicationsPage() {
                                                         </DropdownMenu>
                                                     </div>
 
-                                                    <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-3">
+                                                    <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-4">
                                                         <div className="flex items-center">
-                                                            <MapPin className="h-4 w-4 mr-1" />
-                                                            {application.location}
-                                                        </div>
-                                                        <div className="flex items-center">
-                                                            <Banknote className="h-4 w-4 mr-1" />
-                                                            {application.salary}
-                                                        </div>
-                                                        <div className="flex items-center">
-                                                            <Calendar className="h-4 w-4 mr-1" />
-                                                            지원일: {application.appliedAt}
+                                                            <Calendar className="h-4 w-4 mr-1 flex-shrink-0" />
+                                                            <span>지원일: {formatDate(application.submittedAt)}</span>
                                                         </div>
                                                     </div>
 
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center space-x-3">
-                                                            <Badge className={statusInfo.color}>
+                                                            <Badge variant="outline" className={statusData.color}>
                                                                 <StatusIcon className="h-3 w-3 mr-1" />
-                                                                {statusInfo.label}
+                                                                {statusData.label}
                                                             </Badge>
-
-                                                            {application.recruiter && (
-                                                                <span className="text-sm text-muted-foreground">
-                                  담당자: {application.recruiter}
-                                </span>
-                                                            )}
                                                         </div>
 
-                                                        <div className="text-right">
-                                                            <p className="text-sm text-muted-foreground">
-                                                                마지막 업데이트: {application.lastUpdate}
-                                                            </p>
-                                                            {application.nextStep && application.nextStepDate && (
-                                                                <p className="text-sm font-medium text-primary">
-                                                                    다음: {application.nextStep} ({application.nextStepDate})
-                                                                </p>
-                                                            )}
+                                                        {/* 추가 정보 표시 영역 */}
+                                                        <div className="text-xs text-muted-foreground">
+                                                            ID: {application.id.slice(-8)}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -416,12 +411,37 @@ export default function ApplicationsPage() {
                 </TabsContent>
             </Tabs>
 
-            {/* 페이지네이션 (나중에 추가) */}
+            {/* 결과 요약 */}
+            {filteredApplications.length > 0 && (
+                <div className="mt-6 text-center text-sm text-muted-foreground">
+                    전체 {myApplications.length}개 중 {filteredApplications.length}개 지원서 표시
+                </div>
+            )}
+
+            {/* 페이지네이션 placeholder */}
             {filteredApplications.length > 10 && (
                 <div className="mt-8 flex justify-center">
-                    <p className="text-sm text-muted-foreground">
-                        더 많은 지원 내역을 보려면 페이지네이션을 구현해야 합니다
-                    </p>
+                    <Card className="p-4">
+                        <p className="text-sm text-muted-foreground text-center">
+                            📄 더 많은 지원 내역을 보려면 페이지네이션을 구현해야 합니다
+                        </p>
+                    </Card>
+                </div>
+            )}
+
+            {/* 도움말 */}
+            {myApplications.length === 0 && (
+                <div className="mt-8">
+                    <Card className="bg-blue-50 border-blue-200">
+                        <CardContent className="p-6">
+                            <h3 className="font-semibold text-blue-900 mb-2">💡 시작하기 팁</h3>
+                            <ul className="text-sm text-blue-800 space-y-1">
+                                <li>• 관심 있는 회사에 지원서를 작성해보세요</li>
+                                <li>• 포트폴리오와 기술 스택을 상세히 작성하면 좋습니다</li>
+                                <li>• 지원 동기는 구체적이고 진솔하게 작성해주세요</li>
+                            </ul>
+                        </CardContent>
+                    </Card>
                 </div>
             )}
         </div>
