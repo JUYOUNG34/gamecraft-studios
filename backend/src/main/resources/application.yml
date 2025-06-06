@@ -1,0 +1,55 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: GameCraft Studios Backend
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  sql:
+    init:
+      mode: never
+
+  # 카카오 OAuth 설정 (올바른 Client Authentication 방식)
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-id: "79495da4eb1c1cc40b8ea4d0ca2f7c13"
+            client-secret: "l6Cfo0puAK2F3V8F2qnphMMrO6Gf7wmh"
+            redirect-uri: "http://localhost:8080/login/oauth2/code/kakao"
+            authorization-grant-type: authorization_code
+            scope: profile_nickname,profile_image,account_email
+            client-name: Kakao
+            client-authentication-method: client_secret_post
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
+
+server:
+  port: 8080
+
+# JWT 설정
+jwt:
+  secret: gamecraft-studios-jwt-secret-key-for-kakao-games-2025-must-be-32-chars
+  expiration: 86400000
+
+logging:
+  level:
+    com.gamecraft.studios: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
