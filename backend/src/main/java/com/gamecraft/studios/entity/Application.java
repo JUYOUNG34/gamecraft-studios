@@ -1,13 +1,11 @@
 package com.gamecraft.studios.entity;
 
 import jakarta.persistence.*;
-
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.data.annotation.Id;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "applications")
@@ -23,7 +21,12 @@ public class Application {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // 기본 정보
+    // 연관관계 - 채용공고
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_position_id")
+    private JobPosition jobPosition;
+
+    // 기본 정보 (채용공고가 없는 경우를 위해 유지)
     @Column(nullable = false)
     private String company;
 
@@ -78,7 +81,18 @@ public class Application {
     // 기본 생성자
     public Application() {}
 
-    // 생성자
+    // 채용공고 기반 생성자 (새로 추가)
+    public Application(User user, JobPosition jobPosition, String coverLetter) {
+        this.user = user;
+        this.jobPosition = jobPosition;
+        this.company = jobPosition.getCompany();
+        this.position = jobPosition.getTitle();
+        this.experienceLevel = ExperienceLevel.valueOf(jobPosition.getExperienceLevel().name());
+        this.jobType = JobType.valueOf(jobPosition.getJobType().name());
+        this.coverLetter = coverLetter;
+    }
+
+    // 기존 생성자 (호환성 유지)
     public Application(User user, String company, String position,
                        ExperienceLevel experienceLevel, JobType jobType,
                        String coverLetter) {
@@ -105,6 +119,19 @@ public class Application {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public JobPosition getJobPosition() {
+        return jobPosition;
+    }
+
+    public void setJobPosition(JobPosition jobPosition) {
+        this.jobPosition = jobPosition;
+        // JobPosition이 설정되면 관련 정보들도 자동으로 설정
+        if (jobPosition != null) {
+            this.company = jobPosition.getCompany();
+            this.position = jobPosition.getTitle();
+        }
     }
 
     public String getCompany() {
@@ -251,7 +278,6 @@ public class Application {
         this.updatedAt = updatedAt;
     }
 
-    // 열거형들
     public enum ExperienceLevel {
         JUNIOR("신입"),
         MIDDLE("경력 3-5년"),
@@ -304,5 +330,20 @@ public class Application {
         public String getDescription() {
             return description;
         }
+    }
+
+
+    public boolean isFromJobPosition() {
+        return jobPosition != null;
+    }
+
+
+    public boolean isFinalStatus() {
+        return status == Status.ACCEPTED || status == Status.REJECTED || status == Status.WITHDRAWN;
+    }
+
+
+    public boolean canWithdraw() {
+        return status == Status.SUBMITTED || status == Status.REVIEWING;
     }
 }
