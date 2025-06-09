@@ -12,37 +12,23 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 
-
+    // 카카오 ID로 사용자 찾기
     Optional<User> findByKakaoId(String kakaoId);
 
-
+    // 이메일로 사용자 찾기
     Optional<User> findByEmail(String email);
 
-
+    // 이메일 중복 확인
     boolean existsByEmail(String email);
 
-
+    // 카카오 ID 중복 확인
     boolean existsByKakaoId(String kakaoId);
 
+    // 활성 사용자 수 조회
+    @Query("SELECT COUNT(u) FROM User u WHERE u.status = 'ACTIVE'")
+    long countActiveUsers();
 
-    List<User> findByStatus(User.Status status);
-
-
-    List<User> findByRole(User.Role role);
-
-
-    @Query("SELECT u FROM User u WHERE u.name LIKE %:name% AND u.status = 'ACTIVE'")
-    List<User> findByNameContainingIgnoreCaseAndStatusActive(@Param("name") String name);
-
-
-    @Query("SELECT u FROM User u WHERE u.status = 'ACTIVE' ORDER BY u.createdAt DESC")
-    List<User> findRecentActiveUsers();
-
-
-    @Query("SELECT u FROM User u WHERE u.github IS NOT NULL AND u.github != '' AND u.status = 'ACTIVE'")
-    List<User> findUsersWithGithub();
-
-
-    @Query("SELECT u FROM User u WHERE u.portfolio IS NOT NULL AND u.portfolio != '' AND u.status = 'ACTIVE'")
-    List<User> findUsersWithPortfolio();
+    // 이름으로 사용자 검색 (관리자용)
+    @Query("SELECT u FROM User u WHERE u.name LIKE %:name% ORDER BY u.createdAt DESC")
+    List<User> findByNameContaining(@Param("name") String name);
 }

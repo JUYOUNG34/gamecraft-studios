@@ -3,30 +3,27 @@ package com.gamecraft.studios.entity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.springframework.data.annotation.Id;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "applications")
+@Table(name = "applications", indexes = {
+        @Index(name = "idx_application_user", columnList = "user_id"),
+        @Index(name = "idx_application_company", columnList = "company"),
+        @Index(name = "idx_application_status", columnList = "status")
+})
 public class Application {
 
-    @jakarta.persistence.Id
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 연관관계 - 지원자
+    // 지원자 (User와 연관관계)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // 연관관계 - 채용공고
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "job_position_id")
-    private JobPosition jobPosition;
-
-    // 기본 정보 (채용공고가 없는 경우를 위해 유지)
+    // 기본 정보
     @Column(nullable = false)
     private String company;
 
@@ -41,11 +38,11 @@ public class Application {
     @Column(nullable = false)
     private JobType jobType;
 
-    // 기술 스택 (JSON 형태로 저장)
-    @Column(columnDefinition = "TEXT")
-    private String skills; // ["React", "Spring Boot", "PostgreSQL"]
+    // PostgreSQL JSON 타입 활용 (MySQL과 다른 점!)
+    @Column(columnDefinition = "jsonb")
+    private String skills; // JSON 형태: ["React", "Spring Boot", "PostgreSQL"]
 
-    // 자기소개서
+    // 긴 텍스트는 TEXT 타입 사용
     @Column(columnDefinition = "TEXT")
     private String coverLetter;
 
@@ -55,18 +52,17 @@ public class Application {
     private String workLocation;
     private String referenceLink;
 
-    // 첨부 파일
+    // 파일 업로드
     private String resumeFileName;
     private String resumeFilePath;
     private String portfolioFileName;
     private String portfolioFilePath;
 
-    // 지원서 상태
+    // 상태 관리
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.SUBMITTED;
 
-    // 관리자 메모
     @Column(columnDefinition = "TEXT")
     private String adminNotes;
 
@@ -75,214 +71,32 @@ public class Application {
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
-    @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    // 기본 생성자
-    public Application() {}
+    // Enum 정의들
+    public enum Status {
+        SUBMITTED("제출완료"),
+        REVIEWING("검토중"),
+        INTERVIEW("면접진행"),
+        ACCEPTED("합격"),
+        REJECTED("불합격");
 
-    // 채용공고 기반 생성자 (새로 추가)
-    public Application(User user, JobPosition jobPosition, String coverLetter) {
-        this.user = user;
-        this.jobPosition = jobPosition;
-        this.company = jobPosition.getCompany();
-        this.position = jobPosition.getTitle();
-        this.experienceLevel = ExperienceLevel.valueOf(jobPosition.getExperienceLevel().name());
-        this.jobType = JobType.valueOf(jobPosition.getJobType().name());
-        this.coverLetter = coverLetter;
-    }
+        private final String description;
 
-    // 기존 생성자 (호환성 유지)
-    public Application(User user, String company, String position,
-                       ExperienceLevel experienceLevel, JobType jobType,
-                       String coverLetter) {
-        this.user = user;
-        this.company = company;
-        this.position = position;
-        this.experienceLevel = experienceLevel;
-        this.jobType = jobType;
-        this.coverLetter = coverLetter;
-    }
-
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    public JobPosition getJobPosition() {
-        return jobPosition;
-    }
-
-    public void setJobPosition(JobPosition jobPosition) {
-        this.jobPosition = jobPosition;
-        // JobPosition이 설정되면 관련 정보들도 자동으로 설정
-        if (jobPosition != null) {
-            this.company = jobPosition.getCompany();
-            this.position = jobPosition.getTitle();
+        Status(String description) {
+            this.description = description;
         }
-    }
 
-    public String getCompany() {
-        return company;
-    }
-
-    public void setCompany(String company) {
-        this.company = company;
-    }
-
-    public String getPosition() {
-        return position;
-    }
-
-    public void setPosition(String position) {
-        this.position = position;
-    }
-
-    public ExperienceLevel getExperienceLevel() {
-        return experienceLevel;
-    }
-
-    public void setExperienceLevel(ExperienceLevel experienceLevel) {
-        this.experienceLevel = experienceLevel;
-    }
-
-    public JobType getJobType() {
-        return jobType;
-    }
-
-    public void setJobType(JobType jobType) {
-        this.jobType = jobType;
-    }
-
-    public String getSkills() {
-        return skills;
-    }
-
-    public void setSkills(String skills) {
-        this.skills = skills;
-    }
-
-    public String getCoverLetter() {
-        return coverLetter;
-    }
-
-    public void setCoverLetter(String coverLetter) {
-        this.coverLetter = coverLetter;
-    }
-
-    public String getExpectedSalary() {
-        return expectedSalary;
-    }
-
-    public void setExpectedSalary(String expectedSalary) {
-        this.expectedSalary = expectedSalary;
-    }
-
-    public String getAvailableStartDate() {
-        return availableStartDate;
-    }
-
-    public void setAvailableStartDate(String availableStartDate) {
-        this.availableStartDate = availableStartDate;
-    }
-
-    public String getWorkLocation() {
-        return workLocation;
-    }
-
-    public void setWorkLocation(String workLocation) {
-        this.workLocation = workLocation;
-    }
-
-    public String getReferenceLink() {
-        return referenceLink;
-    }
-
-    public void setReferenceLink(String referenceLink) {
-        this.referenceLink = referenceLink;
-    }
-
-    public String getResumeFileName() {
-        return resumeFileName;
-    }
-
-    public void setResumeFileName(String resumeFileName) {
-        this.resumeFileName = resumeFileName;
-    }
-
-    public String getResumeFilePath() {
-        return resumeFilePath;
-    }
-
-    public void setResumeFilePath(String resumeFilePath) {
-        this.resumeFilePath = resumeFilePath;
-    }
-
-    public String getPortfolioFileName() {
-        return portfolioFileName;
-    }
-
-    public void setPortfolioFileName(String portfolioFileName) {
-        this.portfolioFileName = portfolioFileName;
-    }
-
-    public String getPortfolioFilePath() {
-        return portfolioFilePath;
-    }
-
-    public void setPortfolioFilePath(String portfolioFilePath) {
-        this.portfolioFilePath = portfolioFilePath;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
-    }
-
-    public String getAdminNotes() {
-        return adminNotes;
-    }
-
-    public void setAdminNotes(String adminNotes) {
-        this.adminNotes = adminNotes;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
+        public String getDescription() {
+            return description;
+        }
     }
 
     public enum ExperienceLevel {
         JUNIOR("신입"),
-        MIDDLE("경력 3-5년"),
-        SENIOR("경력 5년 이상"),
-        LEAD("팀 리드");
+        MID("경력 3-5년"),
+        SENIOR("경력 5년+"),
+        LEAD("리드급");
 
         private final String description;
 
@@ -296,10 +110,12 @@ public class Application {
     }
 
     public enum JobType {
-        FULL_TIME("정규직"),
-        CONTRACT("계약직"),
-        FREELANCE("프리랜서"),
-        INTERN("인턴");
+        FRONTEND("프론트엔드"),
+        BACKEND("백엔드"),
+        FULLSTACK("풀스택"),
+        MOBILE("모바일"),
+        DEVOPS("데브옵스"),
+        DATA("데이터");
 
         private final String description;
 
@@ -312,38 +128,59 @@ public class Application {
         }
     }
 
-    public enum Status {
-        SUBMITTED("지원 완료"),
-        REVIEWING("검토중"),
-        INTERVIEW_SCHEDULED("면접 예정"),
-        INTERVIEW_COMPLETED("면접 완료"),
-        ACCEPTED("합격"),
-        REJECTED("불합격"),
-        WITHDRAWN("지원 취소");
+    // 기본 생성자
+    public Application() {}
 
-        private final String description;
-
-        Status(String description) {
-            this.description = description;
-        }
-
-        public String getDescription() {
-            return description;
-        }
+    // 생성자
+    public Application(User user, String company, String position) {
+        this.user = user;
+        this.company = company;
+        this.position = position;
     }
 
+    // Getters & Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public boolean isFromJobPosition() {
-        return jobPosition != null;
-    }
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 
+    public String getCompany() { return company; }
+    public void setCompany(String company) { this.company = company; }
 
-    public boolean isFinalStatus() {
-        return status == Status.ACCEPTED || status == Status.REJECTED || status == Status.WITHDRAWN;
-    }
+    public String getPosition() { return position; }
+    public void setPosition(String position) { this.position = position; }
 
+    public ExperienceLevel getExperienceLevel() { return experienceLevel; }
+    public void setExperienceLevel(ExperienceLevel experienceLevel) { this.experienceLevel = experienceLevel; }
 
-    public boolean canWithdraw() {
-        return status == Status.SUBMITTED || status == Status.REVIEWING;
-    }
+    public JobType getJobType() { return jobType; }
+    public void setJobType(JobType jobType) { this.jobType = jobType; }
+
+    public String getSkills() { return skills; }
+    public void setSkills(String skills) { this.skills = skills; }
+
+    public String getCoverLetter() { return coverLetter; }
+    public void setCoverLetter(String coverLetter) { this.coverLetter = coverLetter; }
+
+    public String getExpectedSalary() { return expectedSalary; }
+    public void setExpectedSalary(String expectedSalary) { this.expectedSalary = expectedSalary; }
+
+    public String getAvailableStartDate() { return availableStartDate; }
+    public void setAvailableStartDate(String availableStartDate) { this.availableStartDate = availableStartDate; }
+
+    public String getWorkLocation() { return workLocation; }
+    public void setWorkLocation(String workLocation) { this.workLocation = workLocation; }
+
+    public String getReferenceLink() { return referenceLink; }
+    public void setReferenceLink(String referenceLink) { this.referenceLink = referenceLink; }
+
+    public Status getStatus() { return status; }
+    public void setStatus(Status status) { this.status = status; }
+
+    public String getAdminNotes() { return adminNotes; }
+    public void setAdminNotes(String adminNotes) { this.adminNotes = adminNotes; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
