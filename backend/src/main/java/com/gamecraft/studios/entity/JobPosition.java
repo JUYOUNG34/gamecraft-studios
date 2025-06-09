@@ -19,7 +19,7 @@ public class JobPosition {
     @Column(nullable = false)
     private String company;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String companyLogo; // 회사 로고 URL
 
     private String companyDescription;
@@ -94,9 +94,10 @@ public class JobPosition {
     private List<Application> applications;
 
     // 기본 생성자
-    public JobPosition() {}
+    public JobPosition() {
+        this.companyLogo = ""; // 빈 문자열로 기본값 설정
+    }
 
-    // 생성자
     public JobPosition(String company, String title, String description,
                        JobType jobType, ExperienceLevel experienceLevel, String location) {
         this.company = company;
@@ -105,8 +106,8 @@ public class JobPosition {
         this.jobType = jobType;
         this.experienceLevel = experienceLevel;
         this.location = location;
+        this.companyLogo = "";
     }
-
     // Getters and Setters
     public Long getId() {
         return id;

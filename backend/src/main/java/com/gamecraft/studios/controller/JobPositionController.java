@@ -1,27 +1,62 @@
 package com.gamecraft.studios.controller;
 
 import com.gamecraft.studios.entity.JobPosition;
-import com.gamecraft.studios.repository.JobPositionRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import com.gamecraft.studios.entity.User;
+import com.gamecraft.studios.service.JobPositionService;
+import com.gamecraft.studios.service.NotificationService;
+import com.gamecraft.studios.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
-@RequestMapping("/positions")
+@RequestMapping("/api/job-positions")
 public class JobPositionController {
 
-    @Autowired
-    private JobPositionRepository jobPositionRepository;
+    private final JobPositionService jobPositionService;
+    private final NotificationService notificationService;
+    private final UserService userService;
 
+    public JobPositionController(JobPositionService jobPositionService,
+                                 NotificationService notificationService,
+                                 UserService userService) {
+        this.jobPositionService = jobPositionService;
+        this.notificationService = notificationService;
+        this.userService = userService;
+    }
+
+    @PostMapping
+    public ResponseEntity<Map<String, Object>> createJobPosition(@RequestBody CreateJobPositionRequest request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            JobPosition jobPosition = jobPositionService.createJobPosition(request);
+
+            // 모든 활성 사용자에게 새로운 채용공고 알림 발송
+            List<User> activeUsers = userService.findActiveUsers();
+            for (User user : activeUsers) {
+                notificationService.notifyNewJobPosting(
+                        user,
+                        jobPosition.getEffectiveCompanyName(),
+                        jobPosition.getTitle()
+                );
+            }
+
+            response.put("success", true);
+            response.put("message", "채용공고가 성공적으로 등록되었습니다");
+            response.put("jobPosition", jobPosition);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "채용공고 등록 실패: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
     /**
      * 채용공고 목록 조회 (필터링, 검색, 페이징)
      */

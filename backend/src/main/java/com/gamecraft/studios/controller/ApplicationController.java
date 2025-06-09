@@ -2,29 +2,110 @@ package com.gamecraft.studios.controller;
 
 import com.gamecraft.studios.entity.Application;
 import com.gamecraft.studios.entity.User;
-import com.gamecraft.studios.repository.ApplicationRepository;
-import com.gamecraft.studios.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import com.gamecraft.studios.service.ApplicationService;
+import com.gamecraft.studios.service.NotificationService;
+import com.gamecraft.studios.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
-@RequestMapping("/application")
+@RequestMapping("/api/applications")
 public class ApplicationController {
 
-    @Autowired
-    private ApplicationRepository applicationRepository;
+    private final ApplicationService applicationService;
+    private final UserService userService;
+    private final NotificationService notificationService;
 
-    @Autowired
-    private UserRepository userRepository;
+    public ApplicationController(ApplicationService applicationService,
+                                 UserService userService,
+                                 NotificationService notificationService) {
+        this.applicationService = applicationService;
+        this.userService = userService;
+        this.notificationService = notificationService;
+    }
+
+    @PostMapping
+    public ResponseEntity<Map<String, Object>> createApplication(
+            @AuthenticationPrincipal OAuth2User oauth2User,
+            @RequestBody CreateApplicationRequest request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            if (oauth2User == null) {
+                response.put("success", false);
+                response.put("message", "로그인이 필요합니다");
+                return ResponseEntity.unauthorized().body(response);
+            }
+
+            User user = userService.getCurrentUser(oauth2User);
+            Application application = applicationService.createApplication(user, request);
+
+            // 지원서 생성 알림
+            notificationService.createNotificationWithAction(
+                    user,
+                    "지원서 제출 완료",
+                    String.format("%s %s 포지션에 지원서를 제출했습니다.",
+                            request.getCompany(), request.getPosition()),
+                    Notification.Type.APPLICATION_STATUS,
+                    "/applications/" + application.getId(),
+                    application.getId()
+            );
+
+            response.put("success", true);
+            response.put("message", "지원서가 성공적으로 제출되었습니다");
+            response.put("applicationId", application.getId());
+            response.put("company", application.getCompany());
+            response.put("position", application.getPosition());
+            response.put("status", application.getStatus());
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "지원서 제출 실패: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    // 관리자가 지원서 상태 변경시 알림 발송
+    @PutMapping("/{id}/status")
+    public ResponseEntity<Map<String, Object>> updateApplicationStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> statusRequest) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String newStatus = statusRequest.get("status");
+            String adminNotes = statusRequest.get("adminNotes");
+
+            Application application = applicationService.updateApplicationStatus(id, newStatus, adminNotes);
+
+            // 지원자에게 상태 변경 알림 발송
+            notificationService.notifyApplicationStatusChange(
+                    application.getUser(),
+                    application.getCompany(),
+                    application.getPosition(),
+                    application.getStatus().getDescription()
+            );
+
+            response.put("success", true);
+            response.put("message", "지원서 상태가 업데이트되었습니다");
+            response.put("application", application);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "상태 업데이트 실패: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
 
     /**
      * 지원서 작성 폼 정보 제공

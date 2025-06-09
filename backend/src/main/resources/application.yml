@@ -4,21 +4,27 @@ spring:
   application:
     name: GameCraft Studios Backend
   datasource:
-    url: jdbc:h2:mem:testdb
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    url: jdbc:postgresql://localhost:5432/gamecraft_dev
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  #  h2:
+  #    console:
+  #      enabled: true
+  #      path: /h2-console
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
-  sql:
-    init:
-      mode: never
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+    sql:
+      init:
+        mode: never
 
   # 카카오 OAuth 설정 (올바른 Client Authentication 방식)
   security:
@@ -53,3 +59,5 @@ logging:
     com.gamecraft.studios: DEBUG
     org.springframework.security: DEBUG
     org.springframework.security.oauth2: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
